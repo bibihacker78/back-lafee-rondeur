@@ -1,0 +1,139 @@
+CREATE TABLE utilisateurs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nom VARCHAR(100) NOT NULL,
+    email VARCHAR(150) UNIQUE NOT NULL,
+    mot_de_passe VARCHAR(255) NOT NULL,
+    role ENUM('admin', 'utilisateur') DEFAULT 'utilisateur',
+    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE produits (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nom VARCHAR(255) NOT NULL,
+    description TEXT,
+    prix DECIMAL(10,2) NOT NULL,
+    stock INT DEFAULT 0,
+    date_ajout TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE commandes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    utilisateur_id INT NOT NULL,
+    total DECIMAL(10,2) NOT NULL,
+    statut ENUM('en attente', 'confirmée', 'expédiée', 'livrée', 'annulée') DEFAULT 'en attente',
+    date_commande TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateurs(id) ON DELETE CASCADE
+);
+
+CREATE TABLE details_commandes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    commande_id INT NOT NULL,
+    produit_id INT NOT NULL,
+    quantite INT NOT NULL,
+    prix_unitaire DECIMAL(10,2) NOT NULL,
+    FOREIGN KEY (commande_id) REFERENCES commandes(id) ON DELETE CASCADE,
+    FOREIGN KEY (produit_id) REFERENCES produits(id) ON DELETE CASCADE
+);
+
+CREATE TABLE panier (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    utilisateur_id INT NOT NULL,
+    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateurs(id) ON DELETE CASCADE
+);
+
+CREATE TABLE panier_details (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    panier_id INT NOT NULL,
+    produit_id INT NOT NULL,
+    quantite INT NOT NULL DEFAULT 1,
+    FOREIGN KEY (panier_id) REFERENCES panier(id) ON DELETE CASCADE,
+    FOREIGN KEY (produit_id) REFERENCES produits(id) ON DELETE CASCADE
+);
+/*Quand un utilisateur valide son panier, voici ce qu'il faut faire en SQL : 
+Créer une nouvelle commande avec l'ID de l'utilisateur */
+
+INSERT INTO commandes (utilisateur_id, total, statut)
+SELECT utilisateur_id, SUM(p.produit_id * p.quantite) AS total, 'en attente'
+FROM panier_details p
+JOIN produits pr ON p.produit_id = pr.id
+WHERE p.panier_id = (SELECT id FROM panier WHERE utilisateur_id = X)
+GROUP BY utilisateur_id;
+
+/* Copier les produits du panier dans details_commandes */
+INSERT INTO details_commandes (commande_id, produit_id, quantite, prix_unitaire)
+SELECT (SELECT id FROM commandes WHERE utilisateur_id = X ORDER BY id DESC LIMIT 1), 
+       produit_id, quantite, (SELECT prix FROM produits WHERE id = panier_details.produit_id)
+FROM panier_details
+WHERE panier_id = (SELECT id FROM panier WHERE utilisateur_id = X);
+
+/*Supprimer le panier après la validation*/
+DELETE FROM panier_details WHERE panier_id = (SELECT id FROM panier WHERE utilisateur_id = X);
+DELETE FROM panier WHERE utilisateur_id = X;
+/* *****************************************************************************************************************************
+********************************************************************************************************************************/
+
+-- Table des catégories
+CREATE TABLE categories (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    nom VARCHAR(100) NOT NULL
+);
+
+-- Table des produits
+CREATE TABLE produits (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    nom VARCHAR(100) NOT NULL,
+    description TEXT,
+    prix DECIMAL(10,2) NOT NULL,
+    stock INT NOT NULL DEFAULT 0,
+    categorie_id INT,
+    image_principale VARCHAR(255), -- Lien de l'image principale
+    FOREIGN KEY (categorie_id) REFERENCES categories(id) ON DELETE CASCADE
+);
+
+-- Table des images secondaires des produits
+CREATE TABLE images_produits (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    produit_id INT,
+    image_url VARCHAR(255), -- Lien des images secondaires
+    FOREIGN KEY (produit_id) REFERENCES produits(id) ON DELETE CASCADE  
+);
+
+-- Table des utilisateurs
+CREATE TABLE utilisateurs (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    nom VARCHAR(50) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    mot_de_passe VARCHAR(255) NOT NULL
+);
+
+-- Table du panier (produits ajoutés mais non encore commandés)
+CREATE TABLE panier (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    utilisateur_id INT,
+    produit_id INT,
+    quantite INT NOT NULL,
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateurs(id) ON DELETE CASCADE,
+    FOREIGN KEY (produit_id) REFERENCES produits(id) ON DELETE CASCADE
+);
+
+-- Table des commandes
+CREATE TABLE commandes (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    utilisateur_id INT,
+    date_commande TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    total DECIMAL(10,2),
+    statut ENUM('en attente', 'expédiée', 'livrée', 'annulée') DEFAULT 'en attente',
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateurs(id) ON DELETE CASCADE
+);
+
+-- Table des détails des commandes
+CREATE TABLE details_commandes (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    commande_id INT,
+    produit_id INT,
+    quantite INT NOT NULL,
+    prix_unitaire DECIMAL(10,2) NOT NULL,
+    FOREIGN KEY (commande_id) REFERENCES commandes(id) ON DELETE CASCADE,
+    FOREIGN KEY (produit_id) REFERENCES produits(id) ON DELETE CASCADE
+);
